@@ -205,7 +205,7 @@ def getRecents(user):
     finally:
         put_db_connection(conn)
 
-@app.route('/users/<string:username>/<string:category>/<string:boolean', methods=["GET"])
+@app.route('/users/<string:username>/<string:category>/<string:boolean>/' , methods=["GET"])
 def incrementUser(user, category, increment):
     if (increment == "True"):
         incrementVar = 1
@@ -216,19 +216,19 @@ def incrementUser(user, category, increment):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            sql_query = "SELECT * FROM users WHERE username=%s"
+            sql_query = "SELECT * FROM users WHERE username= %s"
             cur.execute(sql_query, (user,))
             result = cur.fetchall()
             match category:
                 case "played_games":
                     catint = result[0][2] + incrementVar
-                    sql_query = "UPDATE users SET played_games=%s WHERE username=%s"
+                    sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
                 case "rated_games":
                     catint = result[0][3] + incrementVar
-                    sql_query = "UPDATE users SET rated_games=%s WHERE username=%s"
+                    sql_query = "UPDATE users SET rated_games= %s WHERE username=%s"
                 case "streak":
                     catint = result[0][4] + incrementVar
-                    sql_query = "UPDATE users SET streak=%s WHERE username=%s"
+                    sql_query = "UPDATE users SET streak= %s WHERE username=%s"
             cur.execute(sql_query, (catint, user))
             conn.commit()
             return json.dumps({"Success": "user data successfully updated"}), 200
