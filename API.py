@@ -1,4 +1,6 @@
-from flask import Flask, jsonify, request, json
+import io
+
+from flask import Flask, jsonify, request, json, send_file
 import psycopg2
 from psycopg2 import pool
 
@@ -26,6 +28,26 @@ def get_boardgame(id_actual):
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM boardgame WHERE id_actual = %s", (id_actual,))
+            cur.execute("""
+            SELECT
+                boardgame.*,
+                CASE
+                    WHEN liked_games.id_actual IS NOT NULL THEN 'True'
+                    ELSE 'False'
+                END as is_liked,
+                CASE
+                    WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
+                    ELSE '0'
+                END as user_rating-- Add any other columns you need from user_ratings
+            FROM
+                boardgame
+            LEFT JOIN
+                liked_games ON boardgame.id_actual = liked_games.id_actual
+            LEFT JOIN
+                user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE boardgame.id_actual = %s""",
+                        (id_actual,))
+
+
             boardgame_data = cur.fetchone()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
@@ -44,8 +66,46 @@ def get_boardgame_items(category,limit, offset):
         with conn.cursor() as cur:
             if category != "none":
                 cur.execute("SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null LIMIT %s OFFSET %s", (category, limit, offset))
+
+
+                cur.execute("""
+                SELECT
+                    boardgame.*,
+                    CASE
+                        WHEN liked_games.id_actual IS NOT NULL THEN 'True'
+                        ELSE 'False'
+                    END as is_liked,
+                    CASE
+                        WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
+                        ELSE '0'
+                    END as user_rating-- Add any other columns you need from user_ratings
+                FROM
+                    boardgame
+                LEFT JOIN
+                    liked_games ON boardgame.id_actual = liked_games.id_actual
+                LEFT JOIN
+                    user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null ORDER BY boardgame.name LIMIT %s OFFSET %s""", (category, limit, offset))
+
+
             else:
                 cur.execute("SELECT * FROM boardgame WHERE description is not null LIMIT %s OFFSET %s", (limit, offset))
+                cur.execute("""
+                SELECT
+                    boardgame.*,
+                    CASE
+                        WHEN liked_games.id_actual IS NOT NULL THEN 'True'
+                        ELSE 'False'
+                    END as is_liked,
+                    CASE
+                        WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
+                        ELSE '0'
+                    END as user_rating-- Add any other columns you need from user_ratings
+                FROM
+                    boardgame
+                LEFT JOIN
+                    liked_games ON boardgame.id_actual = liked_games.id_actual
+                LEFT JOIN
+                    user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE description is not null ORDER BY boardgame.name LIMIT %s OFFSET %s""", (limit, offset))
 
             boardgame_data = cur.fetchall()
             if boardgame_data:
@@ -59,7 +119,7 @@ def get_boardgame_items(category,limit, offset):
         put_db_connection(conn)
 
 
-@app.route('/boardgamesearch/<int:id_actual>', methods=['GET'])
+@app.route('/boardgamesearch/<int:id_actual>/', methods=['GET'])
 def get_boardgame_search(id_actual):
     conn = get_db_connection()
     try:
@@ -73,7 +133,7 @@ def get_boardgame_search(id_actual):
     finally:
         put_db_connection(conn)
 
-@app.route('/favoritetoggle/<string:id_actual>/<string:username>', methods=['GET'])
+@app.route('/favoritetoggle/<string:id_actual>/<string:username>/', methods=['GET'])
 def toggle_favorite(id_actual, username):
     conn = get_db_connection()
     try:
@@ -86,11 +146,28 @@ def toggle_favorite(id_actual, username):
                 conn.rollback()
                 cur.execute("DELETE FROM liked_games WHERE username = %s AND id_actual = %s", (username, id_actual))
                 conn.commit()
-                return jsonify({"created": False}), 404
+                return jsonify({"created": False})
     finally:
         put_db_connection(conn)
 
-@app.route('/favoritetoggle/<string:id_actual>/<string:username>/<string:rating>', methods=['GET'])
+@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>', methods=['GET'])
+def get_all_favorites(username, offset, limit):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
+            boardgame_data = cur.fetchall()
+            if boardgame_data:
+
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+                return json.dumps(boardgame_dicts)
+            else:
+                return None
+    finally:
+        put_db_connection(conn)
+
+@app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['GET'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
     try:
@@ -113,11 +190,10 @@ def toggle_ratings(id_actual, username, rating):
             cur.execute("INSERT INTO user_ratings(username, id_actual, liked) VALUES (%s, %s, %s)", (username, id_actual, rating))
             conn.commit()
             return json.dumps({"Created": True, "user_rating": rating})
-
     finally:
         put_db_connection(conn)
 
-@app.route('/favorite-gameboard/<string:id_actual>/<string:username>/', methods=['GET'])
+@app.route('/getratings/<string:id_actual>/<string:username>/', methods=['GET'])
 def get_rating(id_actual, username):
     conn = get_db_connection()
     try:
@@ -131,21 +207,7 @@ def get_rating(id_actual, username):
     finally:
         put_db_connection(conn)
 
-@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>', methods=['GET'])
-def get_all_favorites(username, offset, limit):
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
-            boardgame_data = cur.fetchall()
-            if boardgame_data:
-                column_names = [desc[0] for desc in cur.description]
-                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
-                return json.dumps(boardgame_dicts)
-            else:
-                return None
-    finally:
-        put_db_connection(conn)
+
 
 @app.route('/images/<string:id_actual>', methods=['GET'])
 def get_image_data(id_actual):
@@ -155,7 +217,13 @@ def get_image_data(id_actual):
             cur.execute("SELECT image_data FROM image_data WHERE id_actual = %s", (id_actual,))
             image_data = cur.fetchone()
             if image_data:
-                return jsonify(dict(image_data))
+                image_data = image_data[0]
+                # Assuming image_data is in a binary format (e.g., BLOB)
+                return send_file(
+                    io.BytesIO(image_data),
+                    mimetype='image/png',
+                    as_attachment=False
+                )
             else:
                 return jsonify({"error": "Image data not found"}), 404
     finally:
@@ -239,7 +307,5 @@ def incrementUser(user, category, increment):
         put_db_connection(conn)
 
 
-
-
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='135.181.106.80', port=5000, debug=True)
