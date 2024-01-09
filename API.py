@@ -48,7 +48,7 @@ def get_boardgame(id_actual):
                         (id_actual,))
 
 
-            boardgame_data = cur.fetchone()
+            boardgame_data = cur.fetchall()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = dict(zip(column_names, boardgame_data))
