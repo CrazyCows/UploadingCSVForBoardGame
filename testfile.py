@@ -22,28 +22,37 @@ def put_db_connection(conn):
         db_pool.putconn(conn)
 
 
-def insertIntoRecents(user, id):
-     conn = get_db_connection()
-     try:
-         with conn.cursor() as cur:
-             sql_query_check = "SELECT username FROM recents WHERE username=%s"
-             sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
-             values = (user, id)
-             cur.execute(sql_query_check, (user,))
-             recents = cur.fetchall()
-             print(len(recents))
-             if len(recents) >= 10:
-                 sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
-                 cur.execute(sql_query_delete, (user,))
-                 conn.commit()
-             cur.execute(sql_query, values)
-             conn.commit()
-             return json.dumps({"success": "New Recent Added"}), 200
-     except Exception as e:
-         conn.rollback()
-         return json.dumps({"error": "Failed to insert into recents"}), 500
-     finally:
-         put_db_connection(conn)
+def incrementUser(user, category, increment):
+    if (increment == "True"):
+        incrementVar = 1
+    elif(increment == "False"):
+        incrementVar = -1
+    else:
+        return json.dumps({"error": "Failed to increment userdata"}), 400
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = "SELECT * FROM users WHERE username=%s"
+            cur.execute(sql_query, (user,))
+            result = cur.fetchall()
+            match category:
+                case "played_games":
+                    catint = result[0][2] + incrementVar
+                    sql_query = "UPDATE users SET played_games=%s WHERE username=%s"
+                case "rated_games":
+                    catint = result[0][3] + incrementVar
+                    sql_query = "UPDATE users SET rated_games=%s WHERE username=%s"
+                case "streak":
+                    catint = result[0][4] + incrementVar
+                    sql_query = "UPDATE users SET streak=%s WHERE username=%s"
+            cur.execute(sql_query, (catint, user))
+            conn.commit()
+            return json.dumps({"Success": "user data successfully updated"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to increment userdata"}), 500
+    finally:
+        put_db_connection(conn)
 
 
 
@@ -68,16 +77,5 @@ def get_boardgame_items(category,limit, offset):
         put_db_connection(conn)
 
 if __name__ == '__main__':
-    print(insertIntoRecents("static_user", "1"))
-    print(insertIntoRecents("static_user", "2"))
-    print(insertIntoRecents("static_user", "3"))
-    print(insertIntoRecents("static_user", "4"))
-    print(insertIntoRecents("static_user", "5"))
-    print(insertIntoRecents("static_user", "6"))
-    print(insertIntoRecents("static_user", "7"))
-    print(insertIntoRecents("static_user", "8"))
-    print(insertIntoRecents("static_user", "9"))
-    print(insertIntoRecents("static_user", "10"))
-    print(insertIntoRecents("static_user", "11"))
-    print(insertIntoRecents("static_user", "12"))
+    print()
 

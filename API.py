@@ -139,7 +139,6 @@ def get_all_favorites(username, offset, limit):
             cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
             boardgame_data = cur.fetchall()
             if boardgame_data:
-
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
                 return json.dumps(boardgame_dicts)
@@ -167,28 +166,29 @@ def get_image_data(id_actual):
 
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(user, id):
-    json_data = request.get_json()
-    if json_data:
-        conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                sql_query_check = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
-                sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
-                values = (user, id)
-                recents = cur.fetchall
-                if len(recents) > 10:
-                    cur.execute(sql_query_check, (user,))
-                    conn.commit()
-                cur.execute(sql_query, values)
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql_query_check = "SELECT username FROM recents WHERE username=%s"
+            sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
+            values = (user, id)
+            cur.execute(sql_query_check, (user,))
+            recents = cur.fetchall()
+            print(len(recents))
+            if len(recents) >= 10:
+                sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
+                cur.execute(sql_query_delete, (user,))
                 conn.commit()
-                return jsonify({"success": True})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"error": "Failed to insert into recents"}), 500
-        finally:
-            put_db_connection(conn)
+            cur.execute(sql_query, values)
+            conn.commit()
+            return json.dumps({"success": "New Recent Added"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to insert into recents"}), 500
+    finally:
+        put_db_connection(conn)
 
-@app.route('/recents/<string:username>/>', methods=["GET"])
+@app.route('/recents/<string:username>/', methods=["GET"])
 def getRecents(user):
     try:
         conn = get_db_connection()
@@ -202,6 +202,39 @@ def getRecents(user):
     except Exception as e:
         conn.rollback()
         return json.dumps({"error": "Failed to get recents"}), 500
+    finally:
+        put_db_connection(conn)
+
+@app.route('/users/<string:username>/<string:category>/<string:boolean', methods=["GET"])
+def incrementUser(user, category, increment):
+    if (increment == "True"):
+        incrementVar = 1
+    elif(increment == "False"):
+        incrementVar = -1
+    else:
+        return json.dumps({"error": "Failed to increment userdata"}), 400
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = "SELECT * FROM users WHERE username=%s"
+            cur.execute(sql_query, (user,))
+            result = cur.fetchall()
+            match category:
+                case "played_games":
+                    catint = result[0][2] + incrementVar
+                    sql_query = "UPDATE users SET played_games=%s WHERE username=%s"
+                case "rated_games":
+                    catint = result[0][3] + incrementVar
+                    sql_query = "UPDATE users SET rated_games=%s WHERE username=%s"
+                case "streak":
+                    catint = result[0][4] + incrementVar
+                    sql_query = "UPDATE users SET streak=%s WHERE username=%s"
+            cur.execute(sql_query, (catint, user))
+            conn.commit()
+            return json.dumps({"Success": "user data successfully updated"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to increment userdata"}), 500
     finally:
         put_db_connection(conn)
 
