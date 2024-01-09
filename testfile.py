@@ -1,5 +1,5 @@
 import json
-
+from flask import Flask, jsonify, request, json
 import psycopg2
 
 from psycopg2 import pool
@@ -21,34 +21,45 @@ def put_db_connection(conn):
     if db_pool:
         db_pool.putconn(conn)
 
-def toggle_favorite(id_actual, username, rating):
+
+def getRecents(user):
+        try:
+            conn = get_db_connection()
+            with conn.cursor() as cur:
+                sql_query = "SELECT id_actual FROM recents WHERE username=%s"
+                cur.execute(sql_query, (user,))
+                recents = cur.fetchone(sql_query)
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
+                return json.dumps(boardgame_dicts)
+        except Exception as e:
+            conn.rollback()
+            return json.dumps({"error": "Failed to get recents"}), 500
+        finally:
+            put_db_connection(conn)
+
+
+
+def get_boardgame_items(category,limit, offset):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT liked FROM user_ratings WHERE username = %s AND id_actual = %s", (username, id_actual))
-            result = cur.fetchone()
+            if category != "none":
+                cur.execute("SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null LIMIT %s OFFSET %s", (category, limit, offset))
+            else:
+                cur.execute("SELECT * FROM boardgame WHERE description is not null LIMIT %s OFFSET %s", (limit, offset))
 
-            if result:
-                result = result[0]
-                if result == rating:
-                    cur.execute("DELETE FROM user_ratings WHERE username = %s AND id_actual = %s", (username, id_actual))
-                    conn.commit()
-                    return json.dumps({"Deleted": True, "user_rating": 0})
-                else:
-                    cur.execute("UPDATE user_ratings SET liked = %s WHERE username = %s AND id_actual = %s", (rating, username, id_actual))
-                    conn.commit()
-
-                    return json.dumps({"Updated": True, "user_rating": rating})
-
-            cur.execute("INSERT INTO user_ratings(username, id_actual, liked) VALUES (%s, %s, %s)", (username, id_actual, rating))
-            conn.commit()
-            return json.dumps({"Created": True, "user_rating": rating})
-
+            boardgame_data = cur.fetchall()
+            if boardgame_data:
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+                print(boardgame_dicts)
+                return json.dumps(boardgame_dicts)
+            else:
+                return jsonify({"error": "Boardgames not found"}), 404
     finally:
         put_db_connection(conn)
 
-
-
-
 if __name__ == '__main__':
-    print(toggle_favorite("1", "username", "4"))
+    print(getRecents("static_user"))
+

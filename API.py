@@ -183,6 +183,25 @@ def insertIntoRecents(user, id):
         finally:
             put_db_connection(conn)
 
+@app.route('/recents/<string:username>/>', methods=["GET"])
+def getRecents(user):
+    json_data = request.get_json()
+    if json_data:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                sql_query = "SELECT id_actual FROM recents WHERE username=%s", user
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+                return json.dumps(boardgame_dicts)
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": "Failed to get recents"}), 500
+        finally:
+            put_db_connection(conn)
+
+
+
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)
