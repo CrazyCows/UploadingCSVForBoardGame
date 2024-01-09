@@ -97,7 +97,7 @@ async def search_and_insert_remaining_data_from_bgg():
                 id_actual.get('id_actual')
             )
             await conn.execute(
-                """INSERT INTO image_data (id_actual, image_data) VALUES ($1, $2)""", data.get('id_actual'), data.get('image_data')
+                """INSERT INTO image_data (id_actual, image_data) VALUES ($1, $2)""", id_actual.get('id_actual'), data.get('image_data')
             )
 # Function to parse the XML and extract the required data
 
