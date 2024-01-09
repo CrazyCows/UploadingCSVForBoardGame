@@ -1,4 +1,6 @@
-from flask import Flask, jsonify, request, json
+import io
+
+from flask import Flask, jsonify, request, json, send_file
 import psycopg2
 from psycopg2 import pool
 
@@ -86,11 +88,28 @@ def toggle_favorite(id_actual, username):
                 conn.rollback()
                 cur.execute("DELETE FROM liked_games WHERE username = %s AND id_actual = %s", (username, id_actual))
                 conn.commit()
-                return jsonify({"created": False}), 404
+                return jsonify({"created": False})
     finally:
         put_db_connection(conn)
 
-@app.route('/favoritetoggle/<string:id_actual>/<string:username>/<string:rating>', methods=['GET'])
+@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>', methods=['GET'])
+def get_all_favorites(username, offset, limit):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
+            boardgame_data = cur.fetchall()
+            if boardgame_data:
+
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+                return json.dumps(boardgame_dicts)
+            else:
+                return None
+    finally:
+        put_db_connection(conn)
+
+@app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>', methods=['GET'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
     try:
@@ -113,11 +132,10 @@ def toggle_ratings(id_actual, username, rating):
             cur.execute("INSERT INTO user_ratings(username, id_actual, liked) VALUES (%s, %s, %s)", (username, id_actual, rating))
             conn.commit()
             return json.dumps({"Created": True, "user_rating": rating})
-
     finally:
         put_db_connection(conn)
 
-@app.route('/favorite-gameboard/<string:id_actual>/<string:username>/', methods=['GET'])
+@app.route('/getratings/<string:id_actual>/<string:username>/', methods=['GET'])
 def get_rating(id_actual, username):
     conn = get_db_connection()
     try:
@@ -131,22 +149,7 @@ def get_rating(id_actual, username):
     finally:
         put_db_connection(conn)
 
-@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>', methods=['GET'])
-def get_all_favorites(username, offset, limit):
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
-            boardgame_data = cur.fetchall()
-            if boardgame_data:
 
-                column_names = [desc[0] for desc in cur.description]
-                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
-                return json.dumps(boardgame_dicts)
-            else:
-                return None
-    finally:
-        put_db_connection(conn)
 
 @app.route('/images/<string:id_actual>', methods=['GET'])
 def get_image_data(id_actual):
@@ -156,7 +159,13 @@ def get_image_data(id_actual):
             cur.execute("SELECT image_data FROM image_data WHERE id_actual = %s", (id_actual,))
             image_data = cur.fetchone()
             if image_data:
-                return jsonify(dict(image_data))
+                image_data = image_data[0]
+                # Assuming image_data is in a binary format (e.g., BLOB)
+                return send_file(
+                    io.BytesIO(image_data),
+                    mimetype='image/png',
+                    as_attachment=False
+                )
             else:
                 return jsonify({"error": "Image data not found"}), 404
     finally:
@@ -185,4 +194,4 @@ def insertIntoRecents(user, id):
 
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5050, debug=True)
