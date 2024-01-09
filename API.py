@@ -172,8 +172,13 @@ def insertIntoRecents(user, id):
         conn = get_db_connection()
         try:
             with conn.cursor() as cur:
+                sql_query_check = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
                 sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
                 values = (user, id)
+                recents = cur.fetchall
+                if len(recents) > 10:
+                    cur.execute(sql_query_check, (user,))
+                    conn.commit()
                 cur.execute(sql_query, values)
                 conn.commit()
                 return jsonify({"success": True})
@@ -185,20 +190,20 @@ def insertIntoRecents(user, id):
 
 @app.route('/recents/<string:username>/>', methods=["GET"])
 def getRecents(user):
-    json_data = request.get_json()
-    if json_data:
+    try:
         conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                sql_query = "SELECT id_actual FROM recents WHERE username=%s", user
-                column_names = [desc[0] for desc in cur.description]
-                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
-                return json.dumps(boardgame_dicts)
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"error": "Failed to get recents"}), 500
-        finally:
-            put_db_connection(conn)
+        with conn.cursor() as cur:
+            sql_query = "SELECT id_actual FROM recents WHERE username=%s"
+            cur.execute(sql_query, (user,))
+            recents = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+            boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
+            return json.dumps(boardgame_dicts)
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to get recents"}), 500
+    finally:
+        put_db_connection(conn)
 
 
 
