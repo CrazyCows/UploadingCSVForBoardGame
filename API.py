@@ -90,7 +90,7 @@ def toggle_favorite(id_actual, username):
     finally:
         put_db_connection(conn)
 
-@app.route('/favoritetoggle/<string:id_actual>/<string:username>/<bool:rating>', methods=['GET'])
+@app.route('/favoritetoggle/<string:id_actual>/<string:username>/<string:rating>', methods=['GET'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
     try:
@@ -148,7 +148,7 @@ def get_all_favorites(username, offset, limit):
     finally:
         put_db_connection(conn)
 
-@app.route('/images/<int:id_actual>', methods=['GET'])
+@app.route('/images/<string:id_actual>', methods=['GET'])
 def get_image_data(id_actual):
     conn = get_db_connection()
     try:
@@ -185,4 +185,4 @@ def insertIntoRecents(user, id):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.0.105', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)
