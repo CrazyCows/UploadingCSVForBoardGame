@@ -124,6 +124,40 @@ def getUserData(username, category):
     finally:
         put_db_connection(conn)
 
+def insertIntoRecents(user, id):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            #statement check for when a user already has 10 recents
+            sql_query_check1 = "SELECT username FROM recents WHERE username=%s"
+            #statement check for when an touple needs to be updated
+            sql_query_check2 = "SELECT id_actual FROM recents WHERE id_actual=%s"
+            #the insert that gets executed no matter what
+            sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
+            cur.execute(sql_query_check2, (id, ))
+            alreadyexcisting = cur.fetchone()
+            values = (user, id)
+            cur.execute(sql_query_check1, (user,))
+            recents = cur.fetchall()
+            print(len(recents))
+            if len(recents) >= 10:
+                if alreadyexcisting:
+                    sql_query_delete = "DELETE FROM recents WHERE id_actual = %s;"
+                    cur.execute(sql_query_delete, (id,))
+                    conn.commit()
+                else:
+                    sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
+                    cur.execute(sql_query_delete, (user,))
+                    conn.commit()
+            cur.execute(sql_query, values)
+            conn.commit()
+            return json.dumps({"success": "New Recent Added"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to insert into recents"}), 500
+    finally:
+        put_db_connection(conn)
+
 if __name__ == '__main__':
-    print(getUserData("static_user", "streak"))
+    print(insertIntoRecents("static_user", "12"))
 

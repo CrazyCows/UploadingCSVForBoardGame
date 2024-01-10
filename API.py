@@ -234,19 +234,30 @@ def get_image_data(id_actual):
 
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(user, id):
-    conn = get_db_connection()
     try:
+        conn = get_db_connection()
         with conn.cursor() as cur:
-            sql_query_check = "SELECT username FROM recents WHERE username=%s"
+            #statement check for when a user already has 10 recents
+            sql_query_check1 = "SELECT username FROM recents WHERE username=%s"
+            #statement check for when an touple needs to be updated
+            sql_query_check2 = "SELECT id_actual FROM recents WHERE id_actual=%s"
+            #the insert that gets executed no matter what
             sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
+            cur.execute(sql_query_check2, (id, ))
+            alreadyexcisting = cur.fetchone()
             values = (user, id)
-            cur.execute(sql_query_check, (user,))
+            cur.execute(sql_query_check1, (user,))
             recents = cur.fetchall()
             print(len(recents))
             if len(recents) >= 10:
-                sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
-                cur.execute(sql_query_delete, (user,))
-                conn.commit()
+                if alreadyexcisting:
+                    sql_query_delete = "DELETE FROM recents WHERE id_actual = %s;"
+                    cur.execute(sql_query_delete, (id,))
+                    conn.commit()
+                else:
+                    sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
+                    cur.execute(sql_query_delete, (user,))
+                    conn.commit()
             cur.execute(sql_query, values)
             conn.commit()
             return json.dumps({"success": "New Recent Added"}), 200
@@ -307,7 +318,7 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
-@app.route('/users/<string:username>/<string:category>/')
+@app.route('/users/<string:username>/<string:category>/', methods=['GET'])
 def getUserData(username, category):
     try:
         conn = get_db_connection()
@@ -358,6 +369,7 @@ def update_played_count(username, game_id):
         return json.dumps({"error": "Failed to update played count"}), 500
     finally:
         put_db_connection(conn)
+
 
 
 if __name__ == '__main__':
