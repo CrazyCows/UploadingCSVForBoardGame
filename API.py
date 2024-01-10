@@ -225,8 +225,11 @@ def insertIntoRecents(user, id):
                     sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
                     cur.execute(sql_query_delete, (user,))
                     conn.commit()
-            cur.execute(sql_query, values)
-            conn.commit()
+            try:
+                cur.execute(sql_query, values)
+                conn.commit()
+            except Exception as e:
+                print(1)
             return json.dumps({"success": "New Recent Added"}), 200
     except Exception as e:
         conn.rollback()
@@ -239,7 +242,7 @@ def getRecents(user):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            sql_query = "SELECT id_actual FROM recents WHERE username=%s"
+            sql_query = "SELECT id_actual FROM recents WHERE username=%s ORDER BY timestamp DESC;"
             cur.execute(sql_query, (user,))
             recents = cur.fetchall()
             column_names = [desc[0] for desc in cur.description]
@@ -252,8 +255,8 @@ def getRecents(user):
     finally:
         put_db_connection(conn)
 
-@app.route('/users/<string:username>/<string:category>/<string:boolean>/' , methods=["GET"])
-def incrementUser(user, category, increment):
+@app.route('/users/<string:username>/<string:category>/<string:id_actual>/<string:boolean>/' , methods=["GET"])
+def incrementUser(user, category, id_actual, increment):
     if (increment == "True"):
         incrementVar = 1
     elif(increment == "False"):
@@ -268,6 +271,7 @@ def incrementUser(user, category, increment):
             result = cur.fetchall()
             match category:
                 case "played_games":
+                    update_played_games(user, id_actual)
                     catint = result[0][2] + incrementVar
                     sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
                 case "rated_games":
@@ -284,6 +288,8 @@ def incrementUser(user, category, increment):
         return json.dumps({"error": "Failed to increment userdata"}), 500
     finally:
         put_db_connection(conn)
+
+
 
 @app.route('/users/<string:username>/<string:category>/', methods=['GET'])
 def getUserData(username, category):
@@ -337,6 +343,26 @@ def update_played_count(username, game_id):
     finally:
         put_db_connection(conn)
 
+def update_played_games(username, id_actual):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = "SELECT username, id_actual FROM user_played where id_actual=%s"
+            cur.execute(sql_query, (id_actual,))
+            result = cur.fetchone()
+            if(result):
+                sql_query = "UPDATE user_played SET played_count=played_count+1 WHERE username=%s AND id_actual=%s"
+                cur.execute(sql_query, (username, id_actual))
+                conn.commit()
+            else:
+                sql_query = "INSERT INTO user_played (username, id_actual, played_count) VALUES (%s, %s, 1)"
+                cur.execute(sql_query, (username, id_actual))
+                conn.commit()
+            return json.dumps({"Success": "successfully updated table "}), 200
+    except Exception as e:
+        return json.dumps({"error": "Unable to update user_played list"}), 500
+    finally:
+        put_db_connection(conn)
 
 
 if __name__ == '__main__':
