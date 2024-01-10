@@ -201,22 +201,143 @@ def get_image_data(id_actual):
 
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(user, id):
-    json_data = request.get_json()
-    if json_data:
+    try:
         conn = get_db_connection()
-        try:
-            with conn.cursor() as cur:
-                sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
-                values = (user, id)
-                cur.execute(sql_query, values)
-                conn.commit()
-                return jsonify({"success": True})
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"error": "Failed to insert into recents"}), 500
-        finally:
-            put_db_connection(conn)
+        with conn.cursor() as cur:
+            #statement check for when a user already has 10 recents
+            sql_query_check1 = "SELECT username FROM recents WHERE username=%s"
+            #statement check for when an touple needs to be updated
+            sql_query_check2 = "SELECT id_actual FROM recents WHERE id_actual=%s"
+            #the insert that gets executed no matter what
+            sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
+            cur.execute(sql_query_check2, (id, ))
+            alreadyexcisting = cur.fetchone()
+            values = (user, id)
+            cur.execute(sql_query_check1, (user,))
+            recents = cur.fetchall()
+            print(len(recents))
+            if len(recents) >= 10:
+                if alreadyexcisting:
+                    sql_query_delete = "DELETE FROM recents WHERE id_actual = %s;"
+                    cur.execute(sql_query_delete, (id,))
+                    conn.commit()
+                else:
+                    sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
+                    cur.execute(sql_query_delete, (user,))
+                    conn.commit()
+            cur.execute(sql_query, values)
+            conn.commit()
+            return json.dumps({"success": "New Recent Added"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to insert into recents"}), 500
+    finally:
+        put_db_connection(conn)
+
+@app.route('/recents/<string:username>/', methods=["GET"])
+def getRecents(user):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = "SELECT id_actual FROM recents WHERE username=%s"
+            cur.execute(sql_query, (user,))
+            recents = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+            boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
+            json.dumps({"Success":"Recents successfully fetched"}), 200
+            return json.dumps(boardgame_dicts)
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to get recents"}), 500
+    finally:
+        put_db_connection(conn)
+
+@app.route('/users/<string:username>/<string:category>/<string:boolean>/' , methods=["GET"])
+def incrementUser(user, category, increment):
+    if (increment == "True"):
+        incrementVar = 1
+    elif(increment == "False"):
+        incrementVar = -1
+    else:
+        return json.dumps({"error": "Failed to increment userdata"}), 400
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = "SELECT * FROM users WHERE username= %s"
+            cur.execute(sql_query, (user,))
+            result = cur.fetchall()
+            match category:
+                case "played_games":
+                    catint = result[0][2] + incrementVar
+                    sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
+                case "rated_games":
+                    catint = result[0][3] + incrementVar
+                    sql_query = "UPDATE users SET rated_games= %s WHERE username=%s"
+                case "streak":
+                    catint = result[0][4] + incrementVar
+                    sql_query = "UPDATE users SET streak= %s WHERE username=%s"
+            cur.execute(sql_query, (catint, user))
+            conn.commit()
+            return json.dumps({"Success": "user data successfully updated"}), 200
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to increment userdata"}), 500
+    finally:
+        put_db_connection(conn)
+
+@app.route('/users/<string:username>/<string:category>/', methods=['GET'])
+def getUserData(username, category):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            match category:
+                case "played_games":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+                case "rated_games":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+                case "streak":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+        return json.dumps(result), 200
+    except Exception as e:
+        return json.dumps({"error":"Unable to fetch userdata"}), 500
+    finally:
+        put_db_connection(conn)
+
+
+
+@app.route('/user_played/<string:username>/<string:game_id>', methods=["GET"])
+def update_played_count(username, game_id):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Check if the game exists for the user
+            sql_query = "SELECT * FROM user_played WHERE username= %s AND id_actual= %s"
+            cur.execute(sql_query, (username, game_id))
+            existing_game = cur.fetchone()
+            if existing_game:
+                # If the game exists, increment the played_count
+                played_count = existing_game[2] + 1
+                update_query = "UPDATE user_played SET played_count = %s WHERE username = %s AND id_actual = %s"
+                cur.execute(update_query, (played_count, username, game_id))
+            else:
+                # If the game doesn't exist, insert a new record
+                insert_query = "INSERT INTO user_played (username, id_actual, played_count) VALUES (%s, %s, %s)"
+                cur.execute(insert_query, (username, game_id, 1))
+            conn.commit()
+
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to update played count"}), 500
+    finally:
+        put_db_connection(conn)
+
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.50.82', port=5050, debug=True)
+    app.run(host='135.181.106.80', port=5000, debug=True)
