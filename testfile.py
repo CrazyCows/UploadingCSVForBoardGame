@@ -178,6 +178,47 @@ def update_played_games(username, id_actual, increment):
     finally:
         put_db_connection(conn)
 
+def get_played_games(username):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = ("SELECT * FROM boardgame LEFT JOIN user_played on boardgame.id_actual = user_played.id_actual WHERE username=%s")
+            cur.execute(sql_query, (username,))
+            recents = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+            boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
+            print(boardgame_dicts)
+            json.dumps({"Success":"Recents successfully fetched"}), 200
+            return json.dumps(boardgame_dicts)
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to get recents"}), 500
+    finally:
+        put_db_connection(conn)
+
+def getUserData(username, category):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            match category:
+                case "played_games":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+                case "rated_games":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+                case "streak":
+                    sql_query = "SELECT played_games FROM users WHERE username=%s"
+                    cur.execute(sql_query, (username,))
+                    result = cur.fetchone()
+            return json.dumps({"played_games": result[0]})
+    except Exception as e:
+        return json.dumps({"error":"Unable to fetch userdata"}), 500
+    finally:
+        put_db_connection(conn)
+
 if __name__ == '__main__':
-    print(incrementUser("static_user","played_games", "11", "True"))
+    print(getUserData("static_user", "played_games"))
 

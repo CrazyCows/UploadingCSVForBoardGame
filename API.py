@@ -367,6 +367,25 @@ def update_played_games(username, id_actual):
     finally:
         put_db_connection(conn)
 
+@app.route('/user_played/<string:username>', methods=["GET"])
+def get_played_games(username):
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            sql_query = ("SELECT * FROM boardgame LEFT JOIN user_played on boardgame.id_actual = user_played.id_actual WHERE username=%s")
+            cur.execute(sql_query, (username,))
+            recents = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+            boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
+            print(boardgame_dicts)
+            json.dumps({"Success":"Recents successfully fetched"}), 200
+            return json.dumps(boardgame_dicts)
+    except Exception as e:
+        conn.rollback()
+        return json.dumps({"error": "Failed to get recents"}), 500
+    finally:
+        put_db_connection(conn)
+
 
 if __name__ == '__main__':
     app.run(host='135.181.106.80', port=5000, debug=True)
