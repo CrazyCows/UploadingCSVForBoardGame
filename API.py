@@ -86,12 +86,12 @@ def get_boardgame_items(category,limit, offset):
         put_db_connection(conn)
 
 
-@app.route('/boardgamesearch/<int:id_actual>/', methods=['GET'])
-def get_boardgame_search(id_actual):
+@app.route('/boardgamesearch/<string:user_search>/', methods=['GET'])
+def get_boardgame_search(user_search):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE id_actual = %s", (id_actual,))
+            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s)", (user_search,))
             boardgame_data = cur.fetchone()
             if boardgame_data:
                 return jsonify(dict(boardgame_data))
@@ -200,7 +200,7 @@ def get_image_data(id_actual):
 
 
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
-def insertIntoRecents(user, id):
+def insertIntoRecents(username, id_actual):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
@@ -210,20 +210,20 @@ def insertIntoRecents(user, id):
             sql_query_check2 = "SELECT id_actual FROM recents WHERE id_actual=%s"
             #the insert that gets executed no matter what
             sql_query = "INSERT INTO recents (username, id_actual) VALUES (%s, %s)"
-            cur.execute(sql_query_check2, (id, ))
+            cur.execute(sql_query_check2, (id_actual, ))
             alreadyexcisting = cur.fetchone()
-            values = (user, id)
-            cur.execute(sql_query_check1, (user,))
+            values = (username, id_actual)
+            cur.execute(sql_query_check1, (username,))
             recents = cur.fetchall()
             print(len(recents))
             if len(recents) >= 10:
                 if alreadyexcisting:
                     sql_query_delete = "DELETE FROM recents WHERE id_actual = %s;"
-                    cur.execute(sql_query_delete, (id,))
+                    cur.execute(sql_query_delete, (id_actual,))
                     conn.commit()
                 else:
                     sql_query_delete = "DELETE FROM recents WHERE timestamp = (SELECT MIN(timestamp) FROM recents);"
-                    cur.execute(sql_query_delete, (user,))
+                    cur.execute(sql_query_delete, (username,))
                     conn.commit()
             try:
                 cur.execute(sql_query, values)
@@ -238,12 +238,15 @@ def insertIntoRecents(user, id):
         put_db_connection(conn)
 
 @app.route('/recents/<string:username>/', methods=["GET"])
-def getRecents(user):
+def getRecents(username):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
+            sql_query = "SELECT * FROM boardgame LEFT JOIN recents on boardgame.id_actual = recents.id_actual WHERE username=%s"
+
+            cur.execute(sql_query, (username,))
             sql_query = "SELECT id_actual FROM recents WHERE username=%s ORDER BY timestamp DESC;"
-            cur.execute(sql_query, (user,))
+            cur.execute(sql_query, (username,))
             recents = cur.fetchall()
             column_names = [desc[0] for desc in cur.description]
             boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
