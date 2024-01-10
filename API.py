@@ -1,4 +1,5 @@
 import io
+from pprint import pprint
 
 from flask import Flask, jsonify, request, json, send_file
 import psycopg2
@@ -38,22 +39,23 @@ def get_boardgame(id_actual):
                 CASE
                     WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
                     ELSE '0'
-                END as user_rating-- Add any other columns you need from user_ratings
+                END as user_rating
             FROM
                 boardgame
             LEFT JOIN
                 liked_games ON boardgame.id_actual = liked_games.id_actual
             LEFT JOIN
-                user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE boardgame.id_actual = %s""",
+                user_ratings ON boardgame.id_actual = user_ratings.id_actual 
+            WHERE boardgame.id_actual = %s""",
                         (id_actual,))
 
 
             boardgame_data = cur.fetchone()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
-                boardgame_dicts = dict(zip(column_names, boardgame_data))
-                print(boardgame_dicts)
-                return json.dumps(boardgame_dicts)
+                boardgame_dict = dict(zip(column_names, boardgame_data))
+                print(json.dumps(boardgame_dict))
+                return json.dumps(boardgame_dict)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
@@ -65,47 +67,12 @@ def get_boardgame_items(category,limit, offset):
     try:
         with conn.cursor() as cur:
             if category != "none":
-                cur.execute("SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null LIMIT %s OFFSET %s", (category, limit, offset))
-
-
-                cur.execute("""
-                SELECT
-                    boardgame.*,
-                    CASE
-                        WHEN liked_games.id_actual IS NOT NULL THEN 'True'
-                        ELSE 'False'
-                    END as is_liked,
-                    CASE
-                        WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
-                        ELSE '0'
-                    END as user_rating-- Add any other columns you need from user_ratings
-                FROM
-                    boardgame
-                LEFT JOIN
-                    liked_games ON boardgame.id_actual = liked_games.id_actual
-                LEFT JOIN
-                    user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null ORDER BY boardgame.name LIMIT %s OFFSET %s""", (category, limit, offset))
-
-
+                cur.execute(
+                    "SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null LIMIT %s OFFSET %s",
+                    (category, limit, offset))
             else:
                 cur.execute("SELECT * FROM boardgame WHERE description is not null LIMIT %s OFFSET %s", (limit, offset))
-                cur.execute("""
-                SELECT
-                    boardgame.*,
-                    CASE
-                        WHEN liked_games.id_actual IS NOT NULL THEN 'True'
-                        ELSE 'False'
-                    END as is_liked,
-                    CASE
-                        WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
-                        ELSE '0'
-                    END as user_rating-- Add any other columns you need from user_ratings
-                FROM
-                    boardgame
-                LEFT JOIN
-                    liked_games ON boardgame.id_actual = liked_games.id_actual
-                LEFT JOIN
-                    user_ratings ON boardgame.id_actual = user_ratings.id_actual WHERE description is not null ORDER BY boardgame.name LIMIT %s OFFSET %s""", (limit, offset))
+
 
             boardgame_data = cur.fetchall()
             if boardgame_data:
