@@ -55,6 +55,7 @@ def get_boardgame(id_actual):
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dict = dict(zip(column_names, boardgame_data))
                 print(json.dumps(boardgame_dict))
+                dict({"hej": column_names})
                 return json.dumps(boardgame_dict)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
@@ -86,15 +87,30 @@ def get_boardgame_items(category,limit, offset):
         put_db_connection(conn)
 
 
-@app.route('/boardgamesearch/<string:user_search>/', methods=['GET'])
-def get_boardgame_search(user_search):
+@app.route('/boardgamesearch/<string:user_search>/<int:limit>/<int:offset>/', methods=['GET'])
+def get_boardgame_search(user_search, limit, offset):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s)", (user_search,))
-            boardgame_data = cur.fetchone()
+            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) ORDER BY name LIMIT %s OFFSET %s",
+                        ('%' + user_search + '%', limit, offset))
+            boardgame_data = cur.fetchall()
+            print(boardgame_data)
+
+            column_names = [desc[0] for desc in cur.description]
+            boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+
             if boardgame_data:
-                return jsonify(dict(boardgame_data))
+
+                if offset == 0:
+                    boardgame_dicts.sort(key=lambda x: len(x['name']))
+                    shortest_name_boardgame = boardgame_dicts[0]
+                    remaining_boardgames = boardgame_dicts[1:]
+
+                    result = [shortest_name_boardgame] + remaining_boardgames[offset:offset + limit - 1]
+
+                    return json.dumps(result)
+                return json.dumps(boardgame_dicts)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
@@ -304,7 +320,8 @@ def getUserData(username, category):
                     sql_query = "SELECT played_games FROM users WHERE username=%s"
                     cur.execute(sql_query, (username,))
                     result = cur.fetchone()
-        return json.dumps(result), 200
+            json.dumps({"result": result[0]})
+
     except Exception as e:
         return json.dumps({"error":"Unable to fetch userdata"}), 500
     finally:
