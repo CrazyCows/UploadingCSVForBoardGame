@@ -18,11 +18,9 @@ def get_db_connection():
     if db_pool:
         return db_pool.getconn()
     raise Exception("No database connection pool available")
-
 def put_db_connection(conn):
     if db_pool:
         db_pool.putconn(conn)
-
 @app.route('/boardgame/<string:id_actual>/', methods=['GET'])
 def get_boardgame(id_actual):
     conn = get_db_connection()
@@ -60,7 +58,6 @@ def get_boardgame(id_actual):
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
-
 @app.route('/boardgameitems/<string:category>/<int:limit>/<int:offset>/', methods=['GET'])
 def get_boardgame_items(category,limit, offset):
     conn = get_db_connection()
@@ -84,8 +81,6 @@ def get_boardgame_items(category,limit, offset):
                 return jsonify({"error": "Boardgames not found"}), 404
     finally:
         put_db_connection(conn)
-
-
 @app.route('/boardgamesearch/<string:user_search>/', methods=['GET'])
 def get_boardgame_search(user_search):
     conn = get_db_connection()
@@ -99,7 +94,6 @@ def get_boardgame_search(user_search):
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
-
 @app.route('/favoritetoggle/<string:id_actual>/<string:username>/', methods=['GET'])
 def toggle_favorite(id_actual, username):
     conn = get_db_connection()
@@ -116,8 +110,7 @@ def toggle_favorite(id_actual, username):
                 return jsonify({"created": False})
     finally:
         put_db_connection(conn)
-
-@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>', methods=['GET'])
+@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>/', methods=['GET'])
 def get_all_favorites(username, offset, limit):
     conn = get_db_connection()
     try:
@@ -125,7 +118,6 @@ def get_all_favorites(username, offset, limit):
             cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
             boardgame_data = cur.fetchall()
             if boardgame_data:
-
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
                 return json.dumps(boardgame_dicts)
@@ -133,7 +125,6 @@ def get_all_favorites(username, offset, limit):
                 return None
     finally:
         put_db_connection(conn)
-
 @app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['GET'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
@@ -159,7 +150,6 @@ def toggle_ratings(id_actual, username, rating):
             return json.dumps({"Created": True, "user_rating": rating})
     finally:
         put_db_connection(conn)
-
 @app.route('/getratings/<string:id_actual>/<string:username>/', methods=['GET'])
 def get_rating(id_actual, username):
     conn = get_db_connection()
@@ -173,9 +163,6 @@ def get_rating(id_actual, username):
                 return jsonify({"user_rating": None})
     finally:
         put_db_connection(conn)
-
-
-
 @app.route('/images/<string:id_actual>', methods=['GET'])
 def get_image_data(id_actual):
     conn = get_db_connection()
@@ -195,10 +182,6 @@ def get_image_data(id_actual):
                 return jsonify({"error": "Image data not found"}), 404
     finally:
         put_db_connection(conn)
-
-
-
-
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(username, id_actual):
     try:
@@ -236,7 +219,6 @@ def insertIntoRecents(username, id_actual):
         return json.dumps({"error": "Failed to insert into recents"}), 500
     finally:
         put_db_connection(conn)
-
 @app.route('/recents/<string:username>/', methods=["GET"])
 def getRecents(username):
     try:
@@ -257,7 +239,6 @@ def getRecents(username):
         return json.dumps({"error": "Failed to get recents"}), 500
     finally:
         put_db_connection(conn)
-
 @app.route('/users/<string:username>/<string:category>/<string:id_actual>/<string:boolean>/' , methods=["GET"])
 def incrementUser(user, category, id_actual, increment):
     if (increment == "True"):
@@ -291,9 +272,6 @@ def incrementUser(user, category, id_actual, increment):
         return json.dumps({"error": "Failed to increment userdata"}), 500
     finally:
         put_db_connection(conn)
-
-
-
 @app.route('/users/<string:username>/<string:category>/', methods=['GET'])
 def getUserData(username, category):
     try:
@@ -317,9 +295,6 @@ def getUserData(username, category):
         return json.dumps({"error":"Unable to fetch userdata"}), 500
     finally:
         put_db_connection(conn)
-
-
-
 @app.route('/user_played/<string:username>/<string:game_id>', methods=["GET"])
 def update_played_count(username, game_id):
     try:
@@ -345,7 +320,6 @@ def update_played_count(username, game_id):
         return json.dumps({"error": "Failed to update played count"}), 500
     finally:
         put_db_connection(conn)
-
 def update_played_games(username, id_actual):
     try:
         conn = get_db_connection()
@@ -366,14 +340,13 @@ def update_played_games(username, id_actual):
         return json.dumps({"error": "Unable to update user_played list"}), 500
     finally:
         put_db_connection(conn)
-
-@app.route('/user_played/<string:username>', methods=["GET"])
-def get_played_games(username):
+@app.route('/get_user_played/<string:username>/<string:limit>/<string:offset>/', methods=["GET"])
+def get_played_games(username, limit, offset):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            sql_query = ("SELECT * FROM boardgame LEFT JOIN user_played on boardgame.id_actual = user_played.id_actual WHERE username=%s")
-            cur.execute(sql_query, (username,))
+            sql_query = ("SELECT * FROM boardgame LEFT JOIN user_played on boardgame.id_actual = user_played.id_actual WHERE username=%s LIMIT %s OFFSET %s")
+            cur.execute(sql_query, (username, limit, offset))
             recents = cur.fetchall()
             column_names = [desc[0] for desc in cur.description]
             boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
