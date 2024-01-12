@@ -53,6 +53,7 @@ def get_boardgame(id_actual):
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dict = dict(zip(column_names, boardgame_data))
                 print(json.dumps(boardgame_dict))
+                dict({"hej": column_names})
                 return json.dumps(boardgame_dict)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
@@ -94,19 +95,69 @@ def setLastVisit():
     finally:
         put_db_connection(conn)
 
-@app.route('/boardgamesearch/<string:user_search>/', methods=['GET'])
-def get_boardgame_search(user_search):
+@app.route('/boardgamesearch/<string:user_search>/<int:limit>/<int:offset>/', methods=['GET'])
+def get_boardgame_search(user_search, limit, offset):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s)", (user_search,))
-            boardgame_data = cur.fetchone()
+            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) AND description is not null ORDER BY name LIMIT %s OFFSET %s",
+                        ('%' + user_search + '%', limit, offset))
+            boardgame_data = cur.fetchall()
+            print(boardgame_data)
+
+
             if boardgame_data:
-                return jsonify(dict(boardgame_data))
+
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
+
+                if offset == 0:
+                    boardgame_dicts.sort(key=lambda x: len(x['name']))
+                    shortest_name_boardgame = boardgame_dicts[0]
+                    print("\nAfter sorting:")
+                    for bg in boardgame_dicts:
+                        print(bg['name'], len(bg['name']))
+
+                    print("\nShortest name boardgame:")
+                    print(shortest_name_boardgame)
+
+                    remaining_boardgames = boardgame_dicts[1:]
+                    result = [shortest_name_boardgame] + remaining_boardgames[offset:offset + limit - 1]
+
+                    return json.dumps(result)
+                return json.dumps(boardgame_dicts)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
+
+
+@app.route('/boardGameCategories/')
+def get_categories():
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT DISTINCT categories
+                FROM (
+                    SELECT UNNEST(categories) AS categories
+                    FROM boardgame
+                ) AS subquery;""")
+            categories = cur.fetchall()
+            print(categories)
+
+            if categories:
+                category_list = [item[0] for item in categories]
+
+                # Create a JSON object with the categories list
+                json_result = json.dumps({"categories": category_list})
+
+                return json_result
+            else:
+                return jsonify({"error": "Boardgame not found"}), 404
+    except:
+        print("error")
+        return jsonify({"error": "Boardgame not found"}), 404
+
 @app.route('/favoritetoggle/<string:id_actual>/<string:username>/', methods=['GET'])
 def toggle_favorite(id_actual, username):
     conn = get_db_connection()
@@ -131,6 +182,7 @@ def get_all_favorites(username, offset, limit):
             cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
             boardgame_data = cur.fetchall()
             if boardgame_data:
+
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
                 return json.dumps(boardgame_dicts)
@@ -138,6 +190,7 @@ def get_all_favorites(username, offset, limit):
                 return jsonify({"error": "Boardgames not found"}), 404
     finally:
         put_db_connection(conn)
+
 @app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['GET'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
@@ -163,6 +216,7 @@ def toggle_ratings(id_actual, username, rating):
             return json.dumps({"Created": True, "user_rating": rating})
     finally:
         put_db_connection(conn)
+
 @app.route('/getratings/<string:id_actual>/<string:username>/', methods=['GET'])
 def get_rating(id_actual, username):
     conn = get_db_connection()
@@ -214,6 +268,10 @@ def get_image_data(id_actual):
                 return jsonify({"error": "Image data not found"}), 404
     finally:
         put_db_connection(conn)
+
+
+
+
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(username, id_actual):
     try:
@@ -251,6 +309,7 @@ def insertIntoRecents(username, id_actual):
         return json.dumps({"error": "Failed to insert into recents"}), 500
     finally:
         put_db_connection(conn)
+
 @app.route('/recents/<string:username>/', methods=["GET"])
 def getRecents(username):
     try:
