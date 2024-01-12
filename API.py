@@ -166,11 +166,13 @@ def toggle_favorite(id_actual, username):
             try:
                 cur.execute("INSERT INTO liked_games(username, id_actual) VALUES (%s, %s)", (username, id_actual))
                 conn.commit()
+                incrementUser(username, "liked_games", "True")
                 return jsonify({"created": True})
             except Exception as e:
                 conn.rollback()
                 cur.execute("DELETE FROM liked_games WHERE username = %s AND id_actual = %s", (username, id_actual))
                 conn.commit()
+                incrementUser(username, "liked_games", "False")
                 return jsonify({"created": False})
     finally:
         put_db_connection(conn)
@@ -187,7 +189,9 @@ def get_all_favorites(username, offset, limit):
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
                 return json.dumps(boardgame_dicts)
             else:
-                return jsonify({"error": "Boardgames not found"}), 404
+                return json.dumps([])
+    except Exception as e:
+        json.dumps([])
     finally:
         put_db_connection(conn)
 
@@ -351,6 +355,9 @@ def incrementUser(user, category, increment):
                 case "streak":
                     catint = result[0][4] + incrementVar
                     sql_query = "UPDATE users SET streak= %s WHERE username=%s"
+                case "liked_games":
+                    catint = result[0][7] + incrementVar
+                    sql_query = "UPDATE users SET liked_games= %s WHERE username=%s"
             cur.execute(sql_query, (catint, user))
             conn.commit()
             return json.dumps({"Success": "user data successfully updated"}), 200
@@ -360,11 +367,26 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
+def setStreakCount():
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql_query = "SELECT last_visit, streak_start FROM users WHERE username = 'static_user'"
+            cur.execute(sql_query)
+            result = cur.fetchall()
+            time_difference = result[0][0] - result[0][1]
+            difference_in_days = time_difference.days
+            sql_query = "UPDATE users SET streak = %s WHERE username='static_user'"
+            cur.execute(sql_query, (difference_in_days, ))
+    finally:
+        put_db_connection(conn)
+
 @app.route('/users_key_info/<string:username>/', methods=['GET'])
 def getUserData(username):
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
+            setStreakCount()
             sql_query = "SELECT * FROM users WHERE username=%s"
             cur.execute(sql_query, (username, ))
             result = cur.fetchall()
@@ -412,6 +434,8 @@ def update_played_games(username, id_actual, increment):
         return json.dumps({"error": "Unable to update user_played list"}), 500
     finally:
         put_db_connection(conn)
+
+
 @app.route('/get_user_played/<string:username>/<string:limit>/<string:offset>/', methods=["GET"])
 def get_played_games(username, limit, offset):
     try:
