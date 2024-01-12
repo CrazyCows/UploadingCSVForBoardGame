@@ -110,7 +110,7 @@ def toggle_favorite(id_actual, username):
                 return jsonify({"created": False})
     finally:
         put_db_connection(conn)
-@app.route('/favorite-gameboard-all/<string:username>/<int:offset>/<int:limit>/', methods=['GET'])
+@app.route('/favorite-gameboard-all/<string:username>/<int:limit>/<int:offset>/', methods=['GET'])
 def get_all_favorites(username, offset, limit):
     conn = get_db_connection()
     try:
@@ -122,7 +122,7 @@ def get_all_favorites(username, offset, limit):
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
                 return json.dumps(boardgame_dicts)
             else:
-                return None
+                return jsonify({"error": "Boardgames not found"}), 404
     finally:
         put_db_connection(conn)
 @app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['GET'])
