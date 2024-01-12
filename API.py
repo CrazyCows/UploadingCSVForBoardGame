@@ -137,11 +137,13 @@ def get_categories():
             categories = cur.fetchall()
             print(categories)
 
-
             if categories:
-                column_names = [desc[0] for desc in cur.description]
-                boardgame_dicts = [dict(zip(column_names, row)) for row in categories]
-                return json.dumps(boardgame_dicts)
+                category_list = [item[0] for item in categories]
+
+                # Create a JSON object with the categories list
+                json_result = json.dumps({"categories": category_list})
+
+                return json_result
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
     except:
