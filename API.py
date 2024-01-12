@@ -92,21 +92,28 @@ def get_boardgame_search(user_search, limit, offset):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) ORDER BY name LIMIT %s OFFSET %s",
+            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) AND description is not null ORDER BY name LIMIT %s OFFSET %s",
                         ('%' + user_search + '%', limit, offset))
             boardgame_data = cur.fetchall()
             print(boardgame_data)
 
-            column_names = [desc[0] for desc in cur.description]
-            boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
 
             if boardgame_data:
+
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
 
                 if offset == 0:
                     boardgame_dicts.sort(key=lambda x: len(x['name']))
                     shortest_name_boardgame = boardgame_dicts[0]
-                    remaining_boardgames = boardgame_dicts[1:]
+                    print("\nAfter sorting:")
+                    for bg in boardgame_dicts:
+                        print(bg['name'], len(bg['name']))
 
+                    print("\nShortest name boardgame:")
+                    print(shortest_name_boardgame)
+
+                    remaining_boardgames = boardgame_dicts[1:]
                     result = [shortest_name_boardgame] + remaining_boardgames[offset:offset + limit - 1]
 
                     return json.dumps(result)
@@ -115,6 +122,31 @@ def get_boardgame_search(user_search, limit, offset):
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
+
+
+@app.route('/boardGameCategories/')
+def get_categories():
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT DISTINCT categories
+                FROM (
+                    SELECT UNNEST(categories) AS categories
+                    FROM boardgame
+                ) AS subquery;""")
+            categories = cur.fetchall()
+            print(categories)
+
+
+            if categories:
+                column_names = [desc[0] for desc in cur.description]
+                boardgame_dicts = [dict(zip(column_names, row)) for row in categories]
+                return json.dumps(boardgame_dicts)
+            else:
+                return jsonify({"error": "Boardgame not found"}), 404
+    except:
+        print("error")
+        return jsonify({"error": "Boardgame not found"}), 404
 
 @app.route('/favoritetoggle/<string:id_actual>/<string:username>/', methods=['GET'])
 def toggle_favorite(id_actual, username):
@@ -326,7 +358,6 @@ def getUserData(username, category):
         return json.dumps({"error":"Unable to fetch userdata"}), 500
     finally:
         put_db_connection(conn)
-
 
 
 @app.route('/user_played/<string:username>/<string:game_id>', methods=["GET"])
