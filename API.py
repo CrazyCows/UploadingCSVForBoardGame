@@ -1,5 +1,6 @@
 import io
 from pprint import pprint
+from datetime import datetime
 
 from flask import Flask, jsonify, request, json, send_file
 import psycopg2
@@ -46,8 +47,6 @@ def get_boardgame(id_actual):
                 user_ratings ON boardgame.id_actual = user_ratings.id_actual 
             WHERE boardgame.id_actual = %s""",
                         (id_actual,))
-
-
             boardgame_data = cur.fetchone()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
@@ -59,8 +58,8 @@ def get_boardgame(id_actual):
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
-@app.route('/boardgameitems/<string:category>/<int:limit>/<int:offset>/', methods=['GET'])
-def get_boardgame_items(category,limit, offset):
+@app.route('/boardgameitems/<string:category>/<int:limit>/<int:offset>/<string:username>/', methods=['GET'])
+def get_boardgame_items(category,limit, offset, username):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
@@ -70,8 +69,6 @@ def get_boardgame_items(category,limit, offset):
                     (category, limit, offset))
             else:
                 cur.execute("SELECT * FROM boardgame WHERE description is not null LIMIT %s OFFSET %s", (limit, offset))
-
-
             boardgame_data = cur.fetchall()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
@@ -82,16 +79,30 @@ def get_boardgame_items(category,limit, offset):
                 return jsonify({"error": "Boardgames not found"}), 404
     finally:
         put_db_connection(conn)
+        setLastVisit(username)
 
-def setLastVisit():
+def setLastVisit(username):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
+            # check for wether the time since last visit exceeds the one day
+            sql_check = "SELECT last_visit FROM users WHERE username= %s"
+            cur.execute(sql_check, (username,))
+            result = cur.fetchone()
+            print(result[0])
+            current_gmt_time = datetime.now()
+            difference = current_gmt_time - result[0]
+            if difference.days > 0:
+                sql_update = "UPDATE users SET streak_start = NOW() WHERE username='static_user'"
+                cur.execute(sql_update)
+                conn.commit()
             sql_update = "UPDATE users SET last_visit = NOW() WHERE username = 'static_user';"
             cur.execute(sql_update)
             conn.commit()
+            calculateSetStreak(username)
     except Exception as e:
         print(e)
+        return json.dumps({"error": "Failed to increment userdata"}), 500
     finally:
         put_db_connection(conn)
 
@@ -104,10 +115,7 @@ def get_boardgame_search(user_search, limit, offset):
                         ('%' + user_search + '%', limit, offset))
             boardgame_data = cur.fetchall()
             print(boardgame_data)
-
-
             if boardgame_data:
-
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
 
@@ -367,6 +375,30 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
+def setLastVisit(username):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            # check for wether the time since last visit exceeds the one day
+            sql_check = "SELECT last_visit FROM users WHERE username= %s"
+            cur.execute(sql_check, (username,))
+            result = cur.fetchone()
+            print(result[0])
+            current_gmt_time = datetime.now()
+            difference = current_gmt_time - result[0]
+            if difference.days > 0:
+                sql_update = "UPDATE users SET streak_start = NOW() WHERE username='static_user'"
+                cur.execute(sql_update)
+                conn.commit()
+                setLastVisit()
+            sql_update = "UPDATE users SET last_visit = NOW() WHERE username = 'static_user';"
+            cur.execute(sql_update)
+            conn.commit()
+    except Exception as e:
+        print(e)
+        return json.dumps({"error": "Failed to increment userdata"}), 500
+    finally:
+        put_db_connection(conn)
 def setStreakCount():
     conn = get_db_connection()
     try:
@@ -383,10 +415,10 @@ def setStreakCount():
 
 @app.route('/users_key_info/<string:username>/', methods=['GET'])
 def getUserData(username):
+    calculateSetStreak(username)
     try:
         conn = get_db_connection()
         with conn.cursor() as cur:
-            setStreakCount()
             sql_query = "SELECT * FROM users WHERE username=%s"
             cur.execute(sql_query, (username, ))
             result = cur.fetchall()
@@ -395,6 +427,22 @@ def getUserData(username):
             return json.dumps(user_json)
     except Exception as e:
         return json.dumps({"error":"Unable to fetch"})
+    finally:
+        put_db_connection(conn)
+
+def calculateSetStreak(username):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            streak_calculation = "SELECT streak_start FROM users WHERE username = %s"
+            cur.execute(streak_calculation, (username, ))
+            sinceLastVisit = cur.fetchone()[0]
+            differenceInDays = (datetime.now() - sinceLastVisit).days
+            streak_update = "UPDATE users SET streak = " + str(differenceInDays) + " WHERE username = %s"
+            cur.execute(streak_update, (username, ))
+            conn.commit()
+    except Exception as e:
+        return json.dumps({"error": "Failed to set user streak"}), 500
     finally:
         put_db_connection(conn)
 
