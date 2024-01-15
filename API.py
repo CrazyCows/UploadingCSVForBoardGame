@@ -246,10 +246,26 @@ def get_rating(id_actual, username):
     finally:
         put_db_connection(conn)
 
+@app.route('/getbbratings/<string:id_actual>/')
+def get_bbratings(id_actual):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql_query = "SELECT liked FROM user_ratings WHERE id_actual = %s"
+            cur.execute(sql_query, (id_actual, ))
+            ratings = cur.fetchall()
+            column_names = [desc[0] for desc in cur.description]
+            ratings_dicts = [dict(zip(column_names, row)) for row in ratings]
+            return json.dumps(ratings_dicts)
+    except Exception as e:
+        return json.dumps({"user_ratings": None})
+    finally:
+        put_db_connection(conn)
+
 @app.route('/get_user_ratings/<string:username>/<string:limit>/<string:offset>/', methods=["GET"])
 def get_user_ratings(username, limit, offset):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             sql_query = ("SELECT * FROM boardgame LEFT JOIN user_ratings on boardgame.id_actual = user_ratings.id_actual WHERE username=%s ORDER BY liked DESC LIMIT %s OFFSET %s")
             cur.execute(sql_query, (username, limit, offset))
@@ -264,7 +280,7 @@ def get_user_ratings(username, limit, offset):
     finally:
         put_db_connection(conn)
 
-@app.route('/images/<string:id_actual>', methods=['GET'])
+@app.route('/images/<string:id_actual>/', methods=['GET'])
 def get_image_data(id_actual):
     conn = get_db_connection()
     try:
@@ -419,8 +435,8 @@ def setStreakCount():
 @app.route('/users_key_info/<string:username>/', methods=['GET'])
 def getUserData(username):
     calculateSetStreak(username)
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             sql_query = "SELECT * FROM users WHERE username=%s"
             cur.execute(sql_query, (username, ))
@@ -450,7 +466,7 @@ def calculateSetStreak(username):
         put_db_connection(conn)
 
 
-@app.route('/update_played_games/<string:username>/<string:id_actual>/<string:increment>', methods=["GET"])
+@app.route('/update_played_games/<string:username>/<string:id_actual>/<string:increment>/', methods=["GET"])
 def update_played_count(username, id_actual, increment):
     conn = get_db_connection()
     try:
@@ -489,8 +505,8 @@ def update_played_count(username, id_actual, increment):
 
 @app.route('/get_user_played/<string:username>/<string:limit>/<string:offset>/', methods=["GET"])
 def get_played_games(username, limit, offset):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             sql_query = ("SELECT * FROM boardgame LEFT JOIN user_played on boardgame.id_actual = user_played.id_actual WHERE username=%s ORDER BY played_count DESC LIMIT %s OFFSET %s")
             cur.execute(sql_query, (username, limit, offset))
