@@ -149,6 +149,9 @@ def get_categories():
     except:
         print("error")
         return jsonify({"error": "Boardgame not found"}), 404
+    finally:
+        put_db_connection(conn)
+
 
 @app.route('/favoritetoggle/<string:id_actual>/<string:username>/', methods=['GET'])
 def toggle_favorite(id_actual, username):
@@ -251,8 +254,8 @@ def get_image_data(id_actual):
 
 @app.route('/recents/<string:username>/<string:id_actual>/', methods=['GET'])
 def insertIntoRecents(username, id_actual):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             #statement check for when a user already has 10 recents
             sql_query_check1 = "SELECT username FROM recents WHERE username=%s"
@@ -286,8 +289,8 @@ def insertIntoRecents(username, id_actual):
 
 @app.route('/recents/<string:username>/', methods=["GET"])
 def getRecents(username):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             sql_query = "SELECT * FROM boardgame LEFT JOIN recents on boardgame.id_actual = recents.id_actual WHERE username=%s"
 
@@ -305,6 +308,7 @@ def getRecents(username):
 
 @app.route('/users/<string:username>/<string:category>/<string:boolean>/' , methods=["GET"])
 def incrementUser(user, category, increment):
+    conn = get_db_connection()
     if (increment == "True"):
         incrementVar = 1
     elif(increment == "False"):
@@ -312,7 +316,6 @@ def incrementUser(user, category, increment):
     else:
         return json.dumps({"error": "Failed to increment userdata"}), 400
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             sql_query = "SELECT * FROM users WHERE username= %s"
             cur.execute(sql_query, (user,))
@@ -338,8 +341,8 @@ def incrementUser(user, category, increment):
 
 @app.route('/users/<string:username>/<string:category>/', methods=['GET'])
 def getUserData(username, category):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             match category:
                 case "played_games":
@@ -364,8 +367,8 @@ def getUserData(username, category):
 
 @app.route('/user_played/<string:username>/<string:game_id>', methods=["GET"])
 def update_played_count(username, game_id):
+    conn = get_db_connection()
     try:
-        conn = get_db_connection()
         with conn.cursor() as cur:
             # Check if the game exists for the user
             sql_query = "SELECT * FROM user_played WHERE username= %s AND id_actual= %s"
@@ -383,6 +386,7 @@ def update_played_count(username, game_id):
             conn.commit()
 
     except Exception as e:
+
         conn.rollback()
         return json.dumps({"error": "Failed to update played count"}), 500
     finally:
@@ -391,4 +395,4 @@ def update_played_count(username, game_id):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.50.82', port=5050, debug=True)
+    app.run(host='192.168.0.105', port=5050, debug=True)

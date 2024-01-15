@@ -96,9 +96,9 @@ async def search_and_insert_remaining_data_from_bgg():
                 data.get('weight'),
                 id_actual.get('id_actual')
             )
-            await conn.execute(
-                """INSERT INTO image_data (id_actual, image_data) VALUES ($1, $2)""", id_actual.get('id_actual'), data.get('image_data')
-            )
+            #await conn.execute(
+            #    """INSERT INTO image_data (id_actual, image_data) VALUES ($1, $2)""", id_actual.get('id_actual'), data.get('image_data')
+            #)
 # Function to parse the XML and extract the required data
 
 def parse_xml(xml_data):
@@ -109,14 +109,14 @@ def parse_xml(xml_data):
 
     if item is None:
         return None  # Or handle the absence of <item> as needed
-
+    """
     img_bytes = ''
     try:
         response = requests.get(item.find('image').text)
         img_bytes = response.content
     except:
         print("Error")
-
+    """
     def extract_data(tag_name):
         return [element.text for element in item.findall(tag_name)]
 
@@ -146,7 +146,7 @@ def parse_xml(xml_data):
         'overall_rank': '',
         'category_rank': '',
         'weight': '',
-        'image_data': img_bytes
+        # 'image_data': img_bytes
     }
 
 
