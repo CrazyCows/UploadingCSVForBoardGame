@@ -106,16 +106,38 @@ def setLastVisit(username):
     finally:
         put_db_connection(conn)
 
+
 @app.route('/boardgamesearch/<string:user_search>/<int:limit>/<int:offset>/', methods=['GET'])
 def get_boardgame_search(user_search, limit, offset):
+    categories = request.args.getlist('categories')
     conn = get_db_connection()
+    print(categories)
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) AND description is not null ORDER BY name LIMIT %s OFFSET %s",
-                        ('%' + user_search + '%', limit, offset))
+            if categories:
+                categories_array = "{" + ",".join(categories) + "}"
+                print(categories_array)
+                cur.execute(
+                    "SELECT * FROM boardgame "
+                    "WHERE lower(name) LIKE lower(%s) "
+                    "AND description is not null "
+                    "AND categories && %s::text[] "  # Using array overlap operator
+                    "ORDER BY name LIMIT %s OFFSET %s",
+                    ('%' + user_search + '%', categories_array, limit, offset))
+            else:
+                cur.execute(
+                    "SELECT * FROM boardgame "
+                    "WHERE lower(name) LIKE lower(%s) "
+                    "AND description is not null "
+                    "ORDER BY name LIMIT %s OFFSET %s",
+                    ('%' + user_search + '%', limit, offset))
+
             boardgame_data = cur.fetchall()
             print(boardgame_data)
+
+
             if boardgame_data:
+
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
 
@@ -138,6 +160,7 @@ def get_boardgame_search(user_search, limit, offset):
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
         put_db_connection(conn)
+
 
 
 @app.route('/boardGameCategories/')
@@ -206,7 +229,7 @@ def get_all_favorites(username, offset, limit):
     finally:
         put_db_connection(conn)
 
-@app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['GET'])
+@app.route('/ratingstoggle/<string:id_actual>/<string:username>/<string:rating>/', methods=['POST'])
 def toggle_ratings(id_actual, username, rating):
     conn = get_db_connection()
     try:
@@ -394,30 +417,7 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
-def setLastVisit(username):
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            # check for wether the time since last visit exceeds the one day
-            sql_check = "SELECT last_visit FROM users WHERE username= %s"
-            cur.execute(sql_check, (username,))
-            result = cur.fetchone()
-            print(result[0])
-            current_gmt_time = datetime.now()
-            difference = current_gmt_time - result[0]
-            if difference.days > 0:
-                sql_update = "UPDATE users SET streak_start = NOW() WHERE username='static_user'"
-                cur.execute(sql_update)
-                conn.commit()
-                setLastVisit()
-            sql_update = "UPDATE users SET last_visit = NOW() WHERE username = 'static_user';"
-            cur.execute(sql_update)
-            conn.commit()
-    except Exception as e:
-        print(e)
-        return json.dumps({"error": "Failed to increment userdata"}), 500
-    finally:
-        put_db_connection(conn)
+
 def setStreakCount():
     conn = get_db_connection()
     try:
@@ -526,4 +526,4 @@ def get_played_games(username, limit, offset):
 
 
 if __name__ == '__main__':
-    app.run(host='135.181.106.80', port=5050, debug=False)
+    app.run(host='192.168.50.82', port=5050, debug=True)
