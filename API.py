@@ -87,13 +87,32 @@ def get_boardgame_items(category,limit, offset):
         put_db_connection(conn)
 
 
+
 @app.route('/boardgamesearch/<string:user_search>/<int:limit>/<int:offset>/', methods=['GET'])
 def get_boardgame_search(user_search, limit, offset):
+    categories = request.args.getlist('categories')
     conn = get_db_connection()
+    print(categories)
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE lower(name) LIKE lower(%s) AND description is not null ORDER BY name LIMIT %s OFFSET %s",
-                        ('%' + user_search + '%', limit, offset))
+            if categories:
+                categories_array = "{" + ",".join(categories) + "}"
+                print(categories_array)
+                cur.execute(
+                    "SELECT * FROM boardgame "
+                    "WHERE lower(name) LIKE lower(%s) "
+                    "AND description is not null "
+                    "AND categories && %s::text[] "  # Using array overlap operator
+                    "ORDER BY name LIMIT %s OFFSET %s",
+                    ('%' + user_search + '%', categories_array, limit, offset))
+            else:
+                cur.execute(
+                    "SELECT * FROM boardgame "
+                    "WHERE lower(name) LIKE lower(%s) "
+                    "AND description is not null "
+                    "ORDER BY name LIMIT %s OFFSET %s",
+                    ('%' + user_search + '%', limit, offset))
+
             boardgame_data = cur.fetchall()
             print(boardgame_data)
 
@@ -386,7 +405,6 @@ def update_played_count(username, game_id):
             conn.commit()
 
     except Exception as e:
-
         conn.rollback()
         return json.dumps({"error": "Failed to update played count"}), 500
     finally:
@@ -395,4 +413,4 @@ def update_played_count(username, game_id):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.0.105', port=5050, debug=True)
+    app.run(host='192.168.50.82', port=5050, debug=True)
