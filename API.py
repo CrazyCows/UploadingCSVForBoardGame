@@ -1,6 +1,7 @@
 import io
 from pprint import pprint
 from datetime import datetime
+from urllib.parse import unquote
 
 from flask import Flask, jsonify, request, json, send_file
 import psycopg2
@@ -25,9 +26,9 @@ def put_db_connection(conn):
 @app.route('/boardgame/<string:id_actual>/<string:username>', methods=['GET'])
 def get_boardgame(id_actual, username):
     conn = get_db_connection()
-    print("-----------------------")
-    print("username; ", username)
-    print("-----------------------")
+    #print("-----------------------")
+    #print("username; ", username)
+    #print("-----------------------")
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM boardgame WHERE id_actual = %s", (id_actual,))
@@ -55,16 +56,21 @@ def get_boardgame(id_actual, username):
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dict = dict(zip(column_names, boardgame_data))
-                print(json.dumps(boardgame_dict))
-                dict({"hej": column_names})
+                #print(json.dumps(boardgame_dict))
+                #dict({"hej": column_names})
                 return json.dumps(boardgame_dict)
             else:
                 return jsonify({"error": "Boardgame not found"}), 404
     finally:
+        print("Data sent")
         put_db_connection(conn)
 @app.route('/boardgameitems/<string:category>/<int:limit>/<int:offset>/<string:username>/', methods=['GET'])
 def get_boardgame_items(category,limit, offset, username):
     conn = get_db_connection()
+    category = unquote(category)
+    print("---------------------")
+    print(category)
+    print("---------------------")
     try:
         with conn.cursor() as cur:
             if category != "none":
@@ -77,11 +83,12 @@ def get_boardgame_items(category,limit, offset, username):
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
                 boardgame_dicts = [dict(zip(column_names, row)) for row in boardgame_data]
-                print(boardgame_dicts)
+                #print(boardgame_dicts)
                 return json.dumps(boardgame_dicts)
             else:
                 return jsonify({"error": "Boardgames not found"}), 404
     finally:
+        print("Data recieved 2")
         put_db_connection(conn)
         setLastVisit(username)
 
