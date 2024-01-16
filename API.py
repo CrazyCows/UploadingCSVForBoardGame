@@ -224,7 +224,7 @@ def get_all_favorites(username, offset, limit):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) LIMIT %s OFFSET %s", (username, limit, offset))
+            cur.execute("SELECT * FROM boardgame WHERE id_actual IN (SELECT id_actual FROM liked_games WHERE username = %s) ORDER BY name LIMIT %s OFFSET %s", (username, limit, offset))
             boardgame_data = cur.fetchall()
             if boardgame_data:
 
@@ -263,6 +263,7 @@ def toggle_ratings(id_actual, username, rating):
             return json.dumps({"Created": True, "user_rating": rating})
     except Exception as e:
         print(e)
+        return json.dumps({"Created": False, "user_rating": "0"})
 
     finally:
         put_db_connection(conn)
