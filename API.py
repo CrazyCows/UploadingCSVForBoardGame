@@ -67,15 +67,13 @@ def get_boardgame(id_actual, username):
 @app.route('/boardgameitems/<string:category>/<int:limit>/<int:offset>/<string:username>/', methods=['GET'])
 def get_boardgame_items(category,limit, offset, username):
     conn = get_db_connection()
-    category = unquote(category)
-    print("---------------------")
-    print(category)
+    category = category.replace("--", "/")
     print("---------------------")
     try:
         with conn.cursor() as cur:
             if category != "none":
                 cur.execute(
-                    "SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null LIMIT %s OFFSET %s",
+                    "SELECT * FROM boardgame WHERE LOWER(%s) = ANY(SELECT LOWER(UNNEST(categories))) AND description is not null ORDER BY id LIMIT %s OFFSET %s",
                     (category, limit, offset))
             else:
                 cur.execute("SELECT * FROM boardgame WHERE description is not null LIMIT %s OFFSET %s", (limit, offset))
@@ -304,12 +302,17 @@ def get_user_ratings(username, limit, offset):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            sql_query = ("SELECT * FROM boardgame LEFT JOIN user_ratings on boardgame.id_actual = user_ratings.id_actual WHERE username=%s ORDER BY liked DESC LIMIT %s OFFSET %s")
+            sql_query = (
+                "SELECT * FROM boardgame LEFT JOIN user_ratings on boardgame.id_actual = user_ratings.id_actual WHERE username=%s ORDER BY liked DESC LIMIT %s OFFSET %s")
             cur.execute(sql_query, (username, limit, offset))
             recents = cur.fetchall()
             column_names = [desc[0] for desc in cur.description]
             boardgame_dicts = [dict(zip(column_names, row)) for row in recents]
-            json.dumps({"Success":"Recents successfully fetched"}), 200
+
+            # Sort boardgame_dicts by the integer value of 'liked'
+            boardgame_dicts.sort(key=lambda x: int(x['liked']), reverse=True)
+
+            json.dumps({"Success":"Ratings successfully fetched"}), 200
             return json.dumps(boardgame_dicts)
     except Exception as e:
         conn.rollback()
@@ -484,32 +487,48 @@ def calculateSetStreak(username):
 def update_played_count(username, id_actual, increment):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            sql_query = "SELECT username, id_actual FROM user_played where id_actual=%s"
-            cur.execute(sql_query, (id_actual,))
-            result = cur.fetchall()
+        with (conn.cursor() as cur):
+
             sql_query_check = "SELECT played_count FROM user_played WHERE username = %s AND id_actual = %s"
-            cur.execute(sql_query_check, (username,id_actual))
+            cur.execute(sql_query_check, (username, id_actual))
             checkforone = cur.fetchone()
+
+
             incrementval = 1 if increment == "True" else -1
+
             if not checkforone and incrementval == 1:
+
+
                 sql_query = "INSERT INTO user_played (username, id_actual, played_count) VALUES (%s, %s, %s)"
                 cur.execute(sql_query, (username, id_actual, 1))
                 conn.commit()
-                incrementUser(username, "played_games", increment)
+
+
             else:
+
                 sql_query = "UPDATE user_played SET played_count = played_count + %s WHERE username = %s AND id_actual = %s"
                 cur.execute(sql_query, (incrementval, username, id_actual))
                 conn.commit()
+
+
                 incrementUser(username, "played_games", increment)
-                sql_query_is_zero = "SELECT played_count FROM user_played where id_actual=%s"
-                cur.execute(sql_query_is_zero, (id_actual, ))
+                sql_query_is_zero = "SELECT played_count FROM user_played where id_actual=%s AND username = %s"
+                cur.execute(sql_query_is_zero, (id_actual, username))
+
+
                 checkforzero = cur.fetchone()
+
                 # Delete record if played_count equals 1
-                if checkforone[0] == 1 and checkforzero[0] == 0:
+                if checkforone[0] == 1 and checkforzero[0] <= 0 or checkforzero:
+                    print("we below 0!")
+
                     sql_query_delete = "DELETE FROM user_played WHERE username = %s AND id_actual = %s"
                     cur.execute(sql_query_delete, (username, id_actual))
                     conn.commit()
+
+                return json.dumps({"Success": "successfully updated table "}), 200
+
+            incrementUser(username, "played_games", increment)
             return json.dumps({"Success": "successfully updated table "}), 200
     except Exception as e:
         return json.dumps({"error": "Unable to update user_played list"}), 500
