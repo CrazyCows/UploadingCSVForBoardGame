@@ -22,31 +22,35 @@ def get_db_connection():
 def put_db_connection(conn):
     if db_pool:
         db_pool.putconn(conn)
-@app.route('/boardgame/<string:id_actual>/', methods=['GET'])
-def get_boardgame(id_actual):
+@app.route('/boardgame/<string:id_actual>/<string:username>', methods=['GET'])
+def get_boardgame(id_actual, username):
     conn = get_db_connection()
+    print("-----------------------")
+    print("username; ", username)
+    print("-----------------------")
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM boardgame WHERE id_actual = %s", (id_actual,))
             cur.execute("""
-            SELECT
-                boardgame.*,
-                CASE
-                    WHEN liked_games.id_actual IS NOT NULL THEN 'True'
-                    ELSE 'False'
-                END as is_liked,
-                CASE
-                    WHEN user_ratings.id_actual IS NOT NULL THEN user_ratings.liked
-                    ELSE '0'
-                END as user_rating
-            FROM
-                boardgame
-            LEFT JOIN
-                liked_games ON boardgame.id_actual = liked_games.id_actual
-            LEFT JOIN
-                user_ratings ON boardgame.id_actual = user_ratings.id_actual 
-            WHERE boardgame.id_actual = %s""",
-                        (id_actual,))
+                SELECT
+                    boardgame.*,
+                    CASE
+                        WHEN liked_games.id_actual IS NOT NULL AND liked_games.username = %s THEN 'True'
+                        ELSE 'False'
+                    END as is_liked,
+                    CASE
+                        WHEN user_ratings.id_actual IS NOT NULL AND user_ratings.username = %s THEN user_ratings.liked
+                        ELSE '0'
+                    END as user_rating
+                FROM
+                    boardgame
+                LEFT JOIN
+                    liked_games ON boardgame.id_actual = liked_games.id_actual AND liked_games.username = %s
+                LEFT JOIN
+                    user_ratings ON boardgame.id_actual = user_ratings.id_actual AND user_ratings.username = %s
+                WHERE
+                    boardgame.id_actual = %s""",
+                        (username, username, username, username, id_actual))
             boardgame_data = cur.fetchone()
             if boardgame_data:
                 column_names = [desc[0] for desc in cur.description]
@@ -252,6 +256,9 @@ def toggle_ratings(id_actual, username, rating):
             conn.commit()
             incrementUser(username, "rated_games", "True")
             return json.dumps({"Created": True, "user_rating": rating})
+    except Exception as e:
+        print(e)
+
     finally:
         put_db_connection(conn)
 
@@ -526,4 +533,4 @@ def get_played_games(username, limit, offset):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.50.82', port=5050, debug=True)
+    app.run(host='192.168.133.191', port=5050, debug=True)
