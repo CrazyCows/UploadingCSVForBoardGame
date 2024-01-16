@@ -533,4 +533,4 @@ def get_played_games(username, limit, offset):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.133.191', port=5050, debug=True)
+    app.run(host='192.168.50.82', port=5050, debug=True)
