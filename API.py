@@ -303,7 +303,7 @@ def get_user_ratings(username, limit, offset):
     try:
         with conn.cursor() as cur:
             sql_query = (
-                "SELECT * FROM boardgame LEFT JOIN user_ratings on boardgame.id_actual = user_ratings.id_actual WHERE username=%s ORDER BY liked DESC LIMIT %s OFFSET %s")
+                "SELECT * FROM boardgame LEFT JOIN user_ratings on boardgame.id_actual = user_ratings.id_actual WHERE username=%s ORDER BY CAST(liked as numeric) DESC LIMIT %s OFFSET %s")
             cur.execute(sql_query, (username, limit, offset))
             recents = cur.fetchall()
             column_names = [desc[0] for desc in cur.description]
@@ -411,7 +411,7 @@ def incrementUser(user, category, increment):
         with conn.cursor() as cur:
             sql_query = "SELECT * FROM users WHERE username= %s"
             cur.execute(sql_query, (user,))
-            result = cur.fetchall()
+            result = cur.fetchone()
             match category:
                 case "played_games":
                     catint = result[0][2] + incrementVar
@@ -420,7 +420,7 @@ def incrementUser(user, category, increment):
                     catint = result[0][3] + incrementVar
                     sql_query = "UPDATE users SET rated_games= %s WHERE username=%s"
                 case "streak":
-                    catint = result[0][4] + incrementVar
+                    catint = result[4] + incrementVar
                     sql_query = "UPDATE users SET streak= %s WHERE username=%s"
                 case "liked_games":
                     catint = result[0][7] + incrementVar
@@ -455,9 +455,26 @@ def getUserData(username):
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            sql_query = "SELECT * FROM users WHERE username=%s"
-            cur.execute(sql_query, (username, ))
+            sql_query = """SELECT users.id, 
+                               users.username, 
+                               users.rated_games, 
+                               users.streak, 
+                               users.last_visit, 
+                               users.streak_start, 
+                               users.liked_games, 
+                               COALESCE(CAST(SUM(user_played.played_count) AS VARCHAR), '0') AS played_games
+
+                        FROM users 
+                        LEFT JOIN user_played ON users.username = user_played.username 
+                        WHERE users.username=%s
+                        GROUP BY users.id, users.username, users.rated_games, users.streak, users.last_visit, users.streak_start, users.liked_games"""
+
+
+            cur.execute(sql_query, (username,))
             result = cur.fetchall()
+            print("_-----------------")
+            print(result)
+            print("_-----------------")
             column_names = [desc[0] for desc in cur.description]
             user_json = [dict(zip(column_names, row)) for row in result]
             return json.dumps(user_json)
@@ -496,6 +513,8 @@ def update_played_count(username, id_actual, increment):
 
             incrementval = 1 if increment == "True" else -1
 
+
+
             if not checkforone and incrementval == 1:
 
 
@@ -511,24 +530,21 @@ def update_played_count(username, id_actual, increment):
                 conn.commit()
 
 
-                incrementUser(username, "played_games", increment)
                 sql_query_is_zero = "SELECT played_count FROM user_played where id_actual=%s AND username = %s"
                 cur.execute(sql_query_is_zero, (id_actual, username))
-
-
                 checkforzero = cur.fetchone()
 
                 # Delete record if played_count equals 1
-                if checkforone[0] == 1 and checkforzero[0] <= 0 or checkforzero:
+                if checkforone[0] == 1 and checkforzero[0] <= 0 or incrementval == -1 and checkforzero is None:
                     print("we below 0!")
 
                     sql_query_delete = "DELETE FROM user_played WHERE username = %s AND id_actual = %s"
                     cur.execute(sql_query_delete, (username, id_actual))
                     conn.commit()
 
-                return json.dumps({"Success": "successfully updated table "}), 200
+                    return json.dumps({"Success": "successfully updated table "}), 200
 
-            incrementUser(username, "played_games", increment)
+            # incrementUser(username, "played_games", increment)
             return json.dumps({"Success": "successfully updated table "}), 200
     except Exception as e:
         return json.dumps({"error": "Unable to update user_played list"}), 500
