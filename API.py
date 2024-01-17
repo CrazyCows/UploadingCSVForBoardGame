@@ -102,10 +102,10 @@ def setLastVisit(username):
             current_gmt_time = datetime.now()
             difference = current_gmt_time - result[0]
             if difference.days > 0:
-                sql_update = "UPDATE users SET streak_start = NOW() WHERE username='static_user'"
+                sql_update = "UPDATE users SET streak_start = NOW() WHERE username=username"
                 cur.execute(sql_update)
                 conn.commit()
-            sql_update = "UPDATE users SET last_visit = NOW() WHERE username = 'static_user';"
+            sql_update = "UPDATE users SET last_visit = NOW() WHERE username = username;"
             cur.execute(sql_update)
             conn.commit()
             calculateSetStreak(username)
@@ -436,27 +436,21 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
-
-def setStreakCount():
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            sql_query = "SELECT last_visit, streak_start FROM users WHERE username = 'static_user'"
-            cur.execute(sql_query)
-            result = cur.fetchall()
-            time_difference = result[0][0] - result[0][1]
-            difference_in_days = time_difference.days
-            sql_query = "UPDATE users SET streak = %s WHERE username='static_user'"
-            cur.execute(sql_query, (difference_in_days, ))
-    finally:
-        put_db_connection(conn)
-
 @app.route('/users_key_info/<string:username>/', methods=['GET'])
 def getUserData(username):
     calculateSetStreak(username)
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
+            sql_query = "SELECT id FROM users WHERE username= %s"
+            cur.execute(sql_query, (username,))
+            result = cur.fetchone()
+            print(f"result is: {result}")
+            if(result is None):
+                sql_query = "INSERT INTO users (username) VALUES (%s)"
+                cur.execute(sql_query, (username,))
+                conn.commit()
+
             sql_query = """SELECT users.id, 
                                users.username, 
                                users.rated_games, 
@@ -577,4 +571,4 @@ def get_played_games(username, limit, offset):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.50.82', port=5050, debug=True)
+    app.run(host='192.168.133.191', port=5050, debug=True)
