@@ -415,16 +415,17 @@ def incrementUser(user, category, increment):
             result = cur.fetchone()
             match category:
                 case "played_games":
-                    catint = result[0][2] + incrementVar
-                    sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
+                    if result[2] >= 0 and incrementVar == 1 or result[2] > 0 and incrementVar == -1:
+                        catint = result[2] + incrementVar
+                        sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
                 case "rated_games":
-                    catint = result[0][3] + incrementVar
+                    catint = result[2] + incrementVar
                     sql_query = "UPDATE users SET rated_games= %s WHERE username=%s"
                 case "streak":
                     catint = result[4] + incrementVar
                     sql_query = "UPDATE users SET streak= %s WHERE username=%s"
                 case "liked_games":
-                    catint = result[0][7] + incrementVar
+                    catint = result[6] + incrementVar
                     sql_query = "UPDATE users SET liked_games= %s WHERE username=%s"
             cur.execute(sql_query, (catint, user))
             conn.commit()
