@@ -414,10 +414,6 @@ def incrementUser(user, category, increment):
             cur.execute(sql_query, (user,))
             result = cur.fetchone()
             match category:
-                case "played_games":
-                    if result[2] >= 0 and incrementVar == 1 or result[2] > 0 and incrementVar == -1:
-                        catint = result[2] + incrementVar
-                        sql_query = "UPDATE users SET played_games= %s WHERE username=%s"
                 case "rated_games":
                     catint = result[2] + incrementVar
                     sql_query = "UPDATE users SET rated_games= %s WHERE username=%s"
@@ -436,20 +432,32 @@ def incrementUser(user, category, increment):
     finally:
         put_db_connection(conn)
 
+@app.route('/check_or_create_user/<string:username>/', methods=['POST'])
+def check_or_create_user(username):
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            sql_query = "SELECT id FROM users WHERE username = %s"
+            cur.execute(sql_query, (username,))
+            result = cur.fetchone()
+            print(f"result is: {result}")
+            if result is None:
+                # Corrected the number of placeholders and column names
+                sql_query = "INSERT INTO users (username, streak_start, last_visit, rated_games, liked_games, streak) VALUES (%s, %s, %s, %s, %s, %s)"
+                cur.execute(sql_query, (username, datetime.now(), datetime.now(), 0, 0, 0))
+                conn.commit()
+                return json.dumps({"created": True}), 200
+    except Exception as e:
+        print(e)
+    finally:
+        put_db_connection(conn)
+
 @app.route('/users_key_info/<string:username>/', methods=['GET'])
 def getUserData(username):
     calculateSetStreak(username)
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            sql_query = "SELECT id FROM users WHERE username= %s"
-            cur.execute(sql_query, (username,))
-            result = cur.fetchone()
-            print(f"result is: {result}")
-            if(result is None):
-                sql_query = "INSERT INTO users (username) VALUES (%s)"
-                cur.execute(sql_query, (username,))
-                conn.commit()
 
             sql_query = """SELECT users.id, 
                                users.username, 
@@ -571,4 +579,4 @@ def get_played_games(username, limit, offset):
 
 
 if __name__ == '__main__':
-    app.run(host='192.168.133.191', port=5050, debug=True)
+    app.run(host='192.168.0.105', port=5050, debug=True)
